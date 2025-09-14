@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Chat - Final</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .auth-card { background-color: #1a202c; border: 1px solid #2d3748; }
+        .main-grid { grid-template-columns: 280px 1fr; }
+        .chat-grid { grid-template-columns: 1fr 200px; }
+        .sidebar { background-color: #1f2937; }
+        .main-content { background-color: #111827; }
+        .form-input { background-color: #2d3748; border: 1px solid #4a5568; }
+        .message-input { background-color: #1f2937; border: 1px solid #4a5568; }
+        .btn-primary { background-color: #4f46e5; }
+        .btn-primary:hover { background-color: #4338ca; }
+        .room-card { background-color: #1f2937; border: 1px solid #4a5568; transition: transform 0.2s, box-shadow 0.2s; }
+        .room-card:hover { transform: translateY(-5px); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1); }
+        .message { background-color: #374151; }
+        .my-message { background-color: #4f46e5; }
+        .modal-backdrop { background-color: rgba(0, 0, 0, 0.7); }
+        .modal-content { background-color: #1f2937; }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1f2937; }
+        ::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
+    </style>
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+</head>
+<body class="bg-gray-900 text-white">
+
+    <!-- login and register-->
+    <div id="auth-screen" class="min-h-screen flex items-center justify-center hidden">
+        <div class="auth-card p-8 rounded-lg shadow-lg w-full max-w-sm">
+            <h2 id="auth-title" class="text-2xl font-bold text-center mb-6">Login</h2>
+            <form id="auth-form">
+                <div class="mb-4">
+                    <label for="username" class="block mb-2">Username</label>
+                    <input type="text" id="username" class="w-full p-2 rounded form-input focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                </div>
+                <div class="mb-6">
+                    <label for="password" class="block mb-2">Password</label>
+                    <input type="password" id="password" class="w-full p-2 rounded form-input focus:outline-none focus:ring-2 focus:ring-indigo-500" required>
+                </div>
+                <button type="submit" class="w-full btn-primary text-white font-bold py-2 px-4 rounded">Login</button>
+            </form>
+            <p class="text-center mt-4">
+                <a href="#" id="auth-switch-link" class="text-indigo-400 hover:underline">Don't have an account? Register</a>
+            </p>
+            <p id="auth-error" class="text-red-500 text-center mt-4"></p>
+        </div>
+    </div>
+
+    <div id="app-screen" class="h-screen w-screen grid main-grid hidden">
+        <aside class="sidebar flex flex-col border-r border-gray-700">
+            <div class="p-4 border-b border-gray-700 flex justify-between items-center">
+                <h1 class="text-xl font-bold">Go Chat</h1>
+                <button id="logout-btn" class="text-gray-400 hover:text-white" title="Logout">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                </button>
+            </div>
+            <div class="p-4"><p>Welcome, <strong id="current-username"></strong></p></div>
+            <div class="flex-grow p-4 overflow-y-auto">
+                <h2 class="text-lg font-semibold mb-2">My Rooms</h2>
+                <ul id="my-rooms-list" class="space-y-1"></ul>
+            </div>
+            <div class="p-4 border-t border-gray-700">
+                <button id="create-room-btn" class="w-full btn-primary text-white font-bold py-2 px-4 rounded">Create Room</button>
+            </div>
+        </aside>
+
+        <main id="main-content" class="main-content overflow-y-auto">
+            <div id="room-discovery-view">
+                 <div class="p-6 border-b border-gray-700">
+                    <h2 class="text-3xl font-bold">Room Discovery</h2>
+                    <p class="text-gray-400">Join a public room or create your own.</p>
+                    <div class="mt-4"><input type="text" id="room-search-input" placeholder="Search for rooms..." class="w-full max-w-md p-2 rounded form-input focus:outline-none focus:ring-2 focus:ring-indigo-500"></div>
+                </div>
+                <div id="public-rooms-grid" class="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"></div>
+            </div>
+
+            <div id="chat-view" class="h-full flex flex-col hidden">
+                <div class="p-4 border-b border-gray-700 flex items-center">
+                    <button id="back-to-discovery-btn" class="mr-4 p-2 rounded-full hover:bg-gray-700"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg></button>
+                    <h2 id="chat-header" class="text-xl font-bold"></h2>
+                </div>
+                <div class="flex-grow grid chat-grid overflow-hidden">
+                    <div id="messages-container" class="flex-grow p-4 overflow-y-auto"></div>
+                    <aside id="online-users-sidebar" class="w-full border-l border-gray-700 p-4 overflow-y-auto">
+                        <h3 id="user-list-header" class="font-semibold mb-2"></h3>
+                        <ul id="online-users-list"></ul>
+                    </aside>
+                </div>
+                <div class="p-4 border-t border-gray-700">
+                    <form id="message-form" class="flex items-center space-x-2">
+                        <button type="button" id="upload-btn" title="Upload File" class="p-2 rounded-full hover:bg-gray-700 text-gray-400"><svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg></button>
+                        <input type="file" id="file-input" class="hidden" />
+                        <input id="message-input" type="text" placeholder="Type a message..." autocomplete="off" class="flex-1 px-4 py-2 rounded-md message-input focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <button type="submit" class="btn-primary text-white font-bold py-2 px-4 rounded-md">Send</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- modelss -->
+    <div id="create-room-modal" class="fixed inset-0 flex items-center justify-center modal-backdrop hidden">
+        <div class="modal-content p-8 rounded-lg shadow-lg w-full max-w-md">
+            <h2 class="text-2xl font-bold mb-4">Create New Room</h2>
+            <form id="create-room-form">
+                <p id="create-room-error" class="text-red-500 text-center mb-4"></p>
+                <div class="mb-4"><label for="room-name" class="block mb-2">Room Name</label><input type="text" id="room-name" class="w-full p-2 rounded form-input" required></div>
+                <div class="mb-4"><label for="room-description" class="block mb-2">Description</label><input type="text" id="room-description" class="w-full p-2 rounded form-input"></div>
+                <div class="mb-4"><label class="flex items-center"><input type="checkbox" id="room-private" class="form-checkbox h-5 w-5 text-indigo-600"><span class="ml-2">Private Room</span></label></div>
+                <div id="room-password-field" class="mb-4 hidden"><label for="room-password" class="block mb-2">Password (required for private)</label><input type="password" id="room-password" class="w-full p-2 rounded form-input"></div>
+                <div class="flex justify-end space-x-4"><button type="button" id="cancel-create-room-btn" class="px-4 py-2 rounded bg-gray-600 hover:bg-gray-500">Cancel</button><button type="submit" class="px-4 py-2 rounded btn-primary">Create</button></div>
+            </form>
+        </div>
+    </div>
+    <div id="join-private-room-modal" class="fixed inset-0 flex items-center justify-center modal-backdrop hidden">
+        <div class="modal-content p-8 rounded-lg shadow-lg w-full max-w-sm">
+            <h2 class="text-2xl font-bold mb-4">Join Private Room</h2>
+            <p class="mb-4">This room requires a password.</p>
+            <form id="join-private-room-form">
+                <input type="hidden" id="join-room-id">
+                <div class="mb-4"><label for="join-room-password" class="block mb-2">Password</label><input type="password" id="join-room-password" class="w-full p-2 rounded form-input" required></div>
+                 <div class="flex justify-end space-x-4"><button type="button" id="cancel-join-room-btn" class="px-4 py-2 rounded bg-gray-600 hover:bg-gray-500">Cancel</button><button type="submit" class="px-4 py-2 rounded btn-primary">Join</button></div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let currentUser = null, ws = null, isRegistering = false, activeRoomId = null, activeDM = null, allPublicRooms = [];
+            const $ = (selector) => document.querySelector(selector);
+            const $$ = (selector) => document.querySelectorAll(selector);
+
+            const api = {
+                async request(endpoint, options = {}) {
+                    options.headers = { 'Content-Type': 'application/json', ...options.headers };
+                    const res = await fetch(endpoint, options);
+                    if (!res.ok) {
+                        const errorText = await res.text();
+                        throw new Error(errorText || `HTTP error! status: ${res.status}`);
+                    }
+                    if (res.status === 204 || res.status === 201) return null;
+                    return res.json();
+                },
+                login: (body) => api.request('/api/login', { method: 'POST', body: JSON.stringify(body) }),
+                register: (body) => api.request('/api/register', { method: 'POST', body: JSON.stringify(body) }),
+                logout: () => api.request('/api/logout'),
+                getCurrentUser: () => api.request('/api/current_user'),
+                getRooms: () => api.request('/api/rooms'),
+                createRoom: (body) => api.request('/api/rooms/create', { method: 'POST', body: JSON.stringify(body) }),
+                joinRoom: (body) => api.request('/api/rooms/join', { method: 'POST', body: JSON.stringify(body) }),
+                getMessages: (params) => api.request(`/api/messages?${params}`),
+                uploadFile: (formData) => fetch('/upload', { method: 'POST', body: formData }).then(res => {
+                    if (!res.ok) throw new Error('File upload failed');
+                    return res.json();
+                }),
+            };
+
+            const switchView = (view) => {
+                $('#room-discovery-view').classList.add('hidden');
+                $('#chat-view').classList.add('hidden');
+                if (view === 'app') {
+                    $('#auth-screen').classList.add('hidden');
+                    $('#app-screen').classList.remove('hidden');
+                } else if (view === 'auth') {
+                    $('#app-screen').classList.add('hidden');
+                    $('#auth-screen').classList.remove('hidden');
+                } else {
+                    $('#' + view).classList.remove('hidden');
+                }
+            };
+            
+            const connectWebSocket = (roomId = null) => {
+                if (ws) ws.close();
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const url = `${protocol}//${window.location.host}/ws` + (roomId ? `?room_id=${roomId}` : '');
+                ws = new WebSocket(url);
+                ws.onmessage = handleWebSocketMessage;
+                ws.onopen = () => console.log('WebSocket connected.');
+                ws.onclose = () => console.log('WebSocket disconnected.');
+                ws.onerror = (e) => console.error('WebSocket error:', e);
+            };
+
+            const sendMessage = (content, type) => {
+                if (!ws || ws.readyState !== WebSocket.OPEN) return;
+                const message = { type, content };
+                if (type === 'message') message.room_id = activeRoomId;
+                if (type === 'direct_message') message.recipient_id = activeDM.id;
+                ws.send(JSON.stringify(message));
+            };
+
+            const handleWebSocketMessage = (event) => {
+                const msg = JSON.parse(event.data);
+                switch (msg.type) {
+                    case 'message':
+                        if (msg.room_id === activeRoomId) renderMessage(msg);
+                        break;
+                    case 'direct_message':
+                        const peerId = msg.sender.id === currentUser.id ? msg.recipient_id : msg.sender.id;
+                        if (activeDM && activeDM.id === peerId) renderMessage(msg);
+                        break;
+                    case 'online_users':
+                        if (activeDM) updateUsersList(msg.users, 'All Online Users');
+                        break;
+                    case 'room_members':
+                        if (msg.room_id === activeRoomId) updateUsersList(msg.users, 'Room Members');
+                        break;
+                }
+            };
+            
+            const enterRoom = async (roomId, roomName, isPrivate) => {
+                try {
+                    if (isPrivate) {
+                        $('#join-room-id').value = roomId;
+                        $('#join-private-room-modal').classList.remove('hidden');
+                        return;
+                    }
+                    await api.joinRoom({ room_id: roomId, password: '' });
+                    await setupChatView({ id: roomId, name: roomName }, 'room');
+                    await updateDashboard();
+                } catch (error) {
+                    alert(`Error joining room: ${error}`);
+                }
+            };
+            
+            const setupChatView = async (target, type) => {
+                activeRoomId = type === 'room' ? target.id : null;
+                activeDM = type === 'dm' ? target : null;
+                $('#messages-container').innerHTML = '';
+                $('#chat-header').textContent = type === 'room' ? `# ${target.name}` : `Chat with ${target.username}`;
+                const params = type === 'room' ? `room_id=${target.id}` : `user_id=${target.id}`;
+                const history = await api.getMessages(params);
+                history.forEach(renderMessage);
+                switchView('chat-view');
+                connectWebSocket(activeRoomId);
+            };
+
+            const renderMessage = (msg) => {
+                const isMine = msg.sender.id === currentUser.id;
+                const el = document.createElement('div');
+                el.className = `message p-3 rounded-lg mb-2 max-w-lg ${isMine ? 'my-message ml-auto' : 'mr-auto'}`;
+                const senderName = isMine ? 'You' : msg.sender.username;
+                const timestamp = new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                let contentHTML = escapeHTML(msg.content);
+                if (msg.content.startsWith('/uploads/')) {
+                    const filename = msg.content.split('_').slice(1).join('_') || msg.content.split('/').pop();
+                    const isImage = /\.(gif|jpe?g|tiff?|png|webp|bmp)$/i.test(msg.content);
+                    if (isImage) {
+                        contentHTML = `<a href="${msg.content}" target="_blank"><img src="${msg.content}" alt="${filename}" class="max-w-xs rounded-md mt-2" /><p class="text-sm mt-1">${escapeHTML(filename)}</p></a>`;
+                    } else {
+                        contentHTML = `<a href="${msg.content}" target="_blank" class="text-indigo-400 hover:underline flex items-center space-x-2"><svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg><span>${escapeHTML(filename)}</span></a>`;
+                    }
+                }
+                el.innerHTML = `<div class="flex items-baseline space-x-2 ${isMine ? 'justify-end' : ''}"><p class="font-bold text-sm">${senderName}</p><p class="text-xs text-gray-400">${timestamp}</p></div><div class="mt-1">${contentHTML}</div>`;
+                $('#messages-container').appendChild(el);
+                $('#messages-container').scrollTop = $('#messages-container').scrollHeight;
+            };
+
+            const updateUsersList = (users, header) => {
+                $('#user-list-header').textContent = header;
+                const list = $('#online-users-list');
+                list.innerHTML = '';
+                users.forEach(user => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<a href="#" class="flex items-center space-x-2 p-1 rounded hover:bg-gray-700" data-user-id="${user.id}" data-username="${escapeHTML(user.username)}"><span class="h-2 w-2 bg-green-500 rounded-full"></span><span>${escapeHTML(user.username)} ${user.id === currentUser.id ? '(You)' : ''}</span></a>`;
+                    list.appendChild(li);
+                });
+            };
+
+            const updateDashboard = async () => {
+                const { public_rooms, member_rooms } = await api.getRooms();
+                allPublicRooms = public_rooms;
+                const grid = $('#public-rooms-grid');
+                grid.innerHTML = '';
+                allPublicRooms.forEach(room => {
+                    const card = document.createElement('div');
+                    card.className = 'room-card p-4 rounded-lg cursor-pointer';
+                    card.dataset.roomId = room.id;
+                    card.dataset.roomName = room.name;
+                    card.dataset.isPrivate = room.is_private;
+                    card.innerHTML = `<h3 class="text-lg font-bold pointer-events-none">${escapeHTML(room.name)}</h3><p class="text-gray-400 text-sm truncate pointer-events-none">${escapeHTML(room.description || 'No description')}</p><p class="text-gray-500 text-xs mt-2 pointer-events-none">${room.member_count} member(s)</p>`;
+                    grid.appendChild(card);
+                });
+                const myRoomsList = $('#my-rooms-list');
+                myRoomsList.innerHTML = '';
+                member_rooms.forEach(room => {
+                    const li = document.createElement('li');
+                    li.innerHTML = `<a href="#" class="block p-2 rounded hover:bg-gray-700" data-room-id="${room.id}" data-room-name="${escapeHTML(room.name)}">${escapeHTML(room.name)}</a>`;
+                    myRoomsList.appendChild(li);
+                });
+            };
+            
+            const escapeHTML = (str) => str.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'})[m]);
+            
+            const setupEventListeners = () => {
+                $('#auth-switch-link').addEventListener('click', (e) => {
+                    e.preventDefault();
+                    isRegistering = !isRegistering;
+                    $('#auth-title').textContent = isRegistering ? 'Register' : 'Login';
+                    $('#auth-form button').textContent = isRegistering ? 'Register' : 'Login';
+                    $('#auth-switch-link').textContent = isRegistering ? 'Already have an account? Login' : 'Don\'t have an account? Register';
+                });
+
+                $('#auth-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const body = { username: $('#username').value, password: $('#password').value };
+                    try {
+                        if (isRegistering) {
+                            await api.register(body);
+                            alert('Registration successful! Please log in.');
+                            $('#auth-switch-link').click();
+                        } else {
+                            currentUser = await api.login(body);
+                            initializeApp();
+                        }
+                    } catch (error) {
+                        $('#auth-error').textContent = error.message;
+                    }
+                });
+
+                $('#logout-btn').addEventListener('click', async () => {
+                    await api.logout();
+                    if(ws) ws.close();
+                    currentUser = null;
+                    switchView('auth');
+                });
+                
+                $('#message-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    const content = $('#message-input').value.trim();
+                    if (content) sendMessage(content, activeDM ? 'direct_message' : 'message');
+                    $('#message-input').value = '';
+                });
+                
+                $('#upload-btn').addEventListener('click', () => $('#file-input').click());
+                $('#file-input').addEventListener('change', async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    try {
+                        const result = await api.uploadFile(formData);
+                        sendMessage(result.url, activeDM ? 'direct_message' : 'message');
+                    } catch (err) { alert(err.message); } 
+                    finally { e.target.value = ''; }
+                });
+
+                $('#back-to-discovery-btn').addEventListener('click', () => {
+                    switchView('room-discovery-view');
+                    connectWebSocket();
+                });
+
+                $('#my-rooms-list').addEventListener('click', (e) => {
+                    if (e.target.tagName === 'A') {
+                        e.preventDefault();
+                        const { roomId, roomName } = e.target.dataset;
+                        setupChatView({ id: parseInt(roomId), name: roomName }, 'room');
+                    }
+                });
+
+                $('#public-rooms-grid').addEventListener('click', (e) => {
+                    const card = e.target.closest('.room-card');
+                    if (card) {
+                        const { roomId, roomName, isPrivate } = card.dataset;
+                        enterRoom(parseInt(roomId), roomName, isPrivate === 'true');
+                    }
+                });
+                
+                $('#online-users-list').addEventListener('click', (e) => {
+                    const link = e.target.closest('a');
+                    if (link && link.dataset.userId && parseInt(link.dataset.userId) !== currentUser.id) {
+                        e.preventDefault();
+                        const { userId, username } = link.dataset;
+                        setupChatView({ id: parseInt(userId), username }, 'dm');
+                    }
+                });
+
+                $('#create-room-btn').addEventListener('click', () => {
+                    $('#create-room-error').textContent = '';
+                    $('#create-room-modal').classList.remove('hidden')
+                });
+                $('#cancel-create-room-btn').addEventListener('click', () => $('#create-room-modal').classList.add('hidden'));
+                $('#room-private').addEventListener('change', (e) => $('#room-password-field').classList.toggle('hidden', !e.target.checked));
+                $('#create-room-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    $('#create-room-error').textContent = '';
+                    const isPrivate = $('#room-private').checked;
+                    const password = $('#room-password').value;
+                    if(isPrivate && !password) {
+                        $('#create-room-error').textContent = "Private rooms require a password.";
+                        return;
+                    }
+                    const room = { name: $('#room-name').value, description: $('#room-description').value, is_private: isPrivate, password: password };
+                    try {
+                        await api.createRoom(room);
+                        $('#create-room-modal').classList.add('hidden');
+                        e.target.reset();
+                        updateDashboard();
+                    } catch (error) { 
+                        $('#create-room-error').textContent = `Failed to create room: ${error.message}`; 
+                    }
+                });
+
+                $('#cancel-join-room-btn').addEventListener('click', () => $('#join-private-room-modal').classList.add('hidden'));
+                $('#join-private-room-form').addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const roomId = parseInt($('#join-room-id').value);
+                    const password = $('#join-room-password').value;
+                    try {
+                        await api.joinRoom({ room_id: roomId, password });
+                        $('#join-private-room-modal').classList.add('hidden');
+                        e.target.reset();
+                        const room = allPublicRooms.find(r => r.id === roomId);
+                        await setupChatView({ id: room.id, name: room.name }, 'room');
+                        updateDashboard();
+                    } catch(error) { alert(`Failed to join: ${error.message}`); }
+                });
+                
+                $('#room-search-input').addEventListener('input', (e) => {
+                    const searchTerm = e.target.value.toLowerCase();
+                    $$('#public-rooms-grid .room-card').forEach(card => {
+                        const name = card.dataset.roomName.toLowerCase();
+                        card.style.display = name.includes(searchTerm) ? '' : 'none';
+                    });
+                });
+            };
+
+            const initializeApp = async () => {
+                try {
+                    currentUser = await api.getCurrentUser();
+                    $('#current-username').textContent = currentUser.username;
+                    switchView('app');
+                    switchView('room-discovery-view');
+                    updateDashboard();
+                    connectWebSocket();
+                } catch (e) {
+                    switchView('auth');
+                }
+            };
+
+            setupEventListeners();
+            initializeApp();
+        });
+    </script>
+</body>
+</html>
+

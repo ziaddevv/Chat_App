@@ -34,7 +34,7 @@ A real-time chat application with a **Go backend** and a **JavaScript frontend**
 
     Install Go dependencies:
 
-2. go mod tidy
+    go mod tidy
 
 3. Run the Go server:
 
